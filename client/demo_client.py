@@ -1,6 +1,9 @@
-# demo_client.py
-# Requirements:
-# pip install requests pynacl
+"""
+demo_client.py - test client for the E2EE api
+demonstrates full encryption flow
+
+Requirements: pip install requests pynacl
+"""
 
 import base64
 import json
@@ -12,31 +15,35 @@ import requests
 from nacl.public import PrivateKey, PublicKey, Box
 from nacl.encoding import HexEncoder
 
-BASE_URL = "http://127.0.0.1:8000"  # change if your server is remote
+BASE_URL = "http://127.0.0.1:8000"
 TIMEOUT = 10
 
-# configure logger
+# setup logging
 logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger("demo_client")
 
-# Preset demo messages (one will be chosen randomly each run)
+# test messages
 MESSAGES = [
     "Hello Bob! This is a secret message.",
     "Quick update: meeting at 10.",
     "Here's the OTP: 123456",
     "Lunch at 13:00?",
-    "End-to-end encryption rocks \u2764\ufe0f"
+    "End-to-end encryption rocks!"
 ]
 
 
 def register(username, password):
-    r = requests.post(f"{BASE_URL}/auth/register", json={"username": username, "password": password}, timeout=TIMEOUT)
+    r = requests.post(f"{BASE_URL}/auth/register", 
+                     json={"username": username, "password": password}, 
+                     timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()["access_token"]
 
 
 def login(username, password):
-    r = requests.post(f"{BASE_URL}/auth/login", json={"username": username, "password": password}, timeout=TIMEOUT)
+    r = requests.post(f"{BASE_URL}/auth/login", 
+                     json={"username": username, "password": password}, 
+                     timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()["access_token"]
 
@@ -51,7 +58,8 @@ def whoami(token):
 def publish_key(token, identity_pubkey_hex, device_name="python-client"):
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"identity_pubkey": identity_pubkey_hex, "device_name": device_name}
-    r = requests.post(f"{BASE_URL}/keys/publish", json=payload, headers=headers, timeout=TIMEOUT)
+    r = requests.post(f"{BASE_URL}/keys/publish", json=payload, 
+                     headers=headers, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
@@ -70,19 +78,22 @@ def send_message(token, recipient_id, ciphertext_b64, ephemeral_pubkey_hex, meta
         "ephemeral_pubkey": ephemeral_pubkey_hex,
         "metadata": metadata or {}
     }
-    r = requests.post(f"{BASE_URL}/messages/", json=payload, headers=headers, timeout=TIMEOUT)
+    r = requests.post(f"{BASE_URL}/messages/", json=payload, 
+                     headers=headers, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json()
 
 
 def fetch_inbox(token, limit=20):
     headers = {"Authorization": f"Bearer {token}"}
-    r = requests.get(f"{BASE_URL}/messages/inbox?limit={limit}", headers=headers, timeout=TIMEOUT)
+    r = requests.get(f"{BASE_URL}/messages/inbox?limit={limit}", 
+                    headers=headers, timeout=TIMEOUT)
     r.raise_for_status()
     return r.json().get("messages", [])
 
 
-# crypto helpers
+# --- crypto helpers ---
+
 def gen_identity_keypair():
     priv = PrivateKey.generate()
     pub = priv.public_key
@@ -120,15 +131,11 @@ def identity_pubkey_to_hex(pub: PublicKey) -> str:
     return pub.encode(encoder=HexEncoder).decode()
 
 
-def ephemeral_pubkey_to_hex(pub: PublicKey) -> str:
-    return pub.encode(encoder=HexEncoder).decode()
-
-
 def encrypt_for_recipient(ephemeral_priv: PrivateKey, recipient_pub_hex: str, plaintext: bytes):
     recipient_pub = PublicKey(bytes.fromhex(recipient_pub_hex))
     box = Box(ephemeral_priv, recipient_pub)
-    ciphertext = box.encrypt(plaintext)  # returns nonce + ciphertext bytes
-    return ciphertext  # raw bytes
+    ciphertext = box.encrypt(plaintext)
+    return ciphertext
 
 
 def decrypt_for_recipient(recipient_priv: PrivateKey, ephemeral_pub_hex: str, ciphertext_b64: str):
@@ -138,35 +145,38 @@ def decrypt_for_recipient(recipient_priv: PrivateKey, ephemeral_pub_hex: str, ci
     return box.decrypt(ct)
 
 
+# --- main demo ---
+
 def demo_flow():
     a_user = "alice_demo"
     b_user = "bob_demo"
-    a_pass = "alicepass123"
-    b_pass = "bobpass123"
+    a_pass = "AlicePass123"  # must have uppercase, lowercase, number
+    b_pass = "BobPass123"
 
     logger.info("Register/login users...")
+    
+    # alice
     try:
         a_token = register(a_user, a_pass)
         logger.info("Alice registered.")
-    except requests.HTTPError as e:
-        logger.exception("Alice register failed; trying login")
+    except requests.HTTPError:
         a_token = login(a_user, a_pass)
         logger.info("Alice logged in.")
 
+    # bob
     try:
         b_token = register(b_user, b_pass)
         logger.info("Bob registered.")
-    except requests.HTTPError as e:
-        logger.exception("Bob register failed; trying login")
+    except requests.HTTPError:
         b_token = login(b_user, b_pass)
         logger.info("Bob logged in.")
 
-    # Get numeric user ids from server
+    # get user ids
     alice_id = whoami(a_token)
     bob_id = whoami(b_token)
-    print("Alice id:", alice_id, "Bob id:", bob_id)
+    print(f"Alice id: {alice_id}, Bob id: {bob_id}")
 
-    # load or generate identity keys locally (one per device)
+    # load or generate keys
     a_loaded = load_identity_keys(a_user)
     if a_loaded:
         a_priv, a_pub = a_loaded
@@ -184,61 +194,54 @@ def demo_flow():
     a_pub_hex = identity_pubkey_to_hex(a_pub)
     b_pub_hex = identity_pubkey_to_hex(b_pub)
 
-    # publish identity public keys to the server
-    print("Publish identity public keys...")
+    # publish keys
+    print("Publishing public keys...")
     publish_key(a_token, a_pub_hex, device_name="alice-py")
     publish_key(b_token, b_pub_hex, device_name="bob-py")
-    print("Published keys.")
+    print("Keys published.")
 
-    # fetch published keys to verify and to obtain recipient identity key
-    print("Fetch Bob keys from server (for encryption)...")
+    # get bob's key for encryption
+    print("Fetching Bob's keys...")
     devices = fetch_keys(bob_id)
     if not devices:
-        raise RuntimeError("No devices for recipient found; publish step may have failed")
-    recipient_identity_pub_hex = devices[0]["identity_pubkey"]
-    print("Bob's identity pub (hex):", recipient_identity_pub_hex)
+        raise RuntimeError("No devices found for Bob")
+    recipient_pub_hex = devices[0]["identity_pubkey"]
+    print(f"Bob's pubkey: {recipient_pub_hex[:20]}...")
 
-    # alice encrypts message for bob using ephemeral key
+    # encrypt message
     ephemeral_priv = PrivateKey.generate()
     ephemeral_pub = ephemeral_priv.public_key
     ephemeral_hex = ephemeral_pub.encode(encoder=HexEncoder).decode()
 
-    # choose a random message from the preset list
     chosen = random.choice(MESSAGES)
     message_text = chosen.encode("utf-8")
-    ciphertext_bytes = encrypt_for_recipient(ephemeral_priv, recipient_identity_pub_hex, message_text)
+    ciphertext_bytes = encrypt_for_recipient(ephemeral_priv, recipient_pub_hex, message_text)
     ciphertext_b64 = base64.b64encode(ciphertext_bytes).decode()
 
-    # alice sends message to bob (recipient_id is numeric id)
+    # send
     print("Alice sending encrypted message to Bob...")
-    send_resp = send_message(a_token, bob_id, ciphertext_b64, ephemeral_hex, metadata={"topic": "demo"})
-    print("Send response:", send_resp)
+    resp = send_message(a_token, bob_id, ciphertext_b64, ephemeral_hex, 
+                       metadata={"topic": "demo"})
+    print(f"Send response: {resp}")
 
-    # bob fetches inbox and decrypts messages
+    # bob fetches inbox
     print("Bob fetching inbox...")
     msgs = fetch_inbox(b_token)
-    print("Inbox messages:", json.dumps(msgs, indent=2))
+    print(f"Inbox: {json.dumps(msgs, indent=2)}")
 
     if not msgs:
-        print("No messages found in bob's inbox")
+        print("No messages in inbox")
         return
 
-    # decrypt the most recent (assume first)
+    # decrypt
     latest = msgs[0]
-    # Debug: verify server returned the same ciphertext we sent (first message)
     try:
-        if latest["ciphertext"] == ciphertext_b64:
-            print("DEBUG: server ciphertext matches sent ciphertext")
-        else:
-            print("DEBUG: server ciphertext does NOT match sent ciphertext")
-    except Exception:
-        pass
-    try:
-        decrypted = decrypt_for_recipient(b_priv, latest["ephemeral_pubkey"], latest["ciphertext"])
-        print("Decrypted plaintext:", decrypted.decode())
+        decrypted = decrypt_for_recipient(b_priv, latest["ephemeral_pubkey"], 
+                                         latest["ciphertext"])
+        print(f"Decrypted: {decrypted.decode()}")
     except Exception as e:
-        print("Failed to decrypt message:", e)
-        print("Make sure ephemeral_pubkey and ciphertext are in the correct format.")
+        print(f"Decrypt failed: {e}")
+
 
 if __name__ == "__main__":
     demo_flow()

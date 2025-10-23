@@ -1,6 +1,8 @@
+# models.py
+
+import datetime
 import sqlalchemy as sa
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, LargeBinary, JSON
-import datetime
 
 from app.db.base import metadata
 
@@ -14,7 +16,6 @@ users = sa.Table(
     Column("created_at", DateTime, default=datetime.datetime.utcnow),
 )
 
-
 devices = sa.Table(
     "devices",
     metadata,
@@ -24,7 +25,6 @@ devices = sa.Table(
     Column("device_name", String, nullable=True),
     Column("created_at", DateTime, default=datetime.datetime.utcnow),
 )
-
 
 messages = sa.Table(
     "messages",
@@ -38,7 +38,6 @@ messages = sa.Table(
     Column("created_at", DateTime, default=datetime.datetime.utcnow),
     Column("delivered", Boolean, default=False),
 )
-
 
 audit_logs = sa.Table(
     "audit_logs",

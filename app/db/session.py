@@ -7,6 +7,10 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
+    # Connection pool limits
+    pool_size=20,
+    max_overflow=10,
+    pool_timeout=30,
 )
 
 
