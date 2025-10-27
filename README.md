@@ -1,295 +1,239 @@
 # Kavro
 
-End-to-End Encrypted Messaging Backend
+A production-ready End-to-End Encrypted (E2EE) messaging backend built with FastAPI.
 
----
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ## Overview
 
-Kavro is a backend service that provides secure message exchange using public-key cryptography. Messages are encrypted on the client side before transmission, ensuring that the server cannot access message content at any point.
+Kavro implements secure message exchange using public-key cryptography. Messages are encrypted client-side before transmission, ensuring the server never has access to plaintext content.
 
-This implementation follows the same security principles used in production messaging applications such as WhatsApp and Signal.
+This project demonstrates:
+- RESTful API design with FastAPI
+- Async database operations with SQLAlchemy + asyncpg
+- JWT-based authentication
+- OWASP security best practices
+- Docker containerization
 
----
+## Features
 
-## System Requirements
+| Feature | Description |
+|---------|-------------|
+| E2EE Messaging | Public/private key encryption (NaCl) |
+| Secure Auth | JWT tokens + bcrypt password hashing |
+| Brute Force Protection | Account lockout after failed attempts |
+| Rate Limiting | Redis-based request throttling |
+| Field Encryption | Fernet encryption for sensitive data |
+| Security Headers | HSTS, CSP, X-Frame-Options |
+| Audit Logging | Security event tracking |
+| Docker Support | Multi-container deployment |
 
-| Component | Version | Purpose |
-|-----------|---------|---------|
-| Python | 3.10+ | Runtime environment |
-| PostgreSQL | 14+ | Primary data storage |
-| Redis | 6+ | Rate limiting and caching |
+## Tech Stack
 
----
+- **Backend**: Python 3.10+, FastAPI
+- **Database**: PostgreSQL (async with asyncpg)
+- **Cache**: Redis
+- **Auth**: JWT (python-jose), bcrypt (passlib)
+- **Encryption**: PyNaCl, Fernet
 
-## Architecture
+## Quick Start
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Client    │────▶│   Server    │────▶│  Database   │
-│             │     │  (FastAPI)  │     │ (PostgreSQL)│
-└─────────────┘     └─────────────┘     └─────────────┘
-       │                   │
-       │                   ▼
-       │            ┌─────────────┐
-       │            │    Redis    │
-       │            │ (Rate Limit)│
-       │            └─────────────┘
-       │
-       ▼
-┌─────────────────────────────────────────────────────┐
-│                  Message Flow                        │
-├──────────────────────────────────────────────────────┤
-│  1. Sender retrieves recipient's public key          │
-│  2. Sender encrypts message using public key         │
-│  3. Server stores encrypted message (ciphertext)    │
-│  4. Recipient retrieves encrypted message           │
-│  5. Recipient decrypts using their private key      │
-└─────────────────────────────────────────────────────┘
-```
+### Prerequisites
 
----
+- Python 3.10+
+- PostgreSQL 14+
+- Redis 6+
 
-## Installation
-
-### Step 1: Clone Repository
+### Installation
 
 ```bash
-git clone https://github.com/ashishkrshaw/Kavro.git
-cd Kavro
-```
-
-### Step 2: Create Virtual Environment
-
-```bash
+git clone https://github.com/ashishkrshaw/kavro.git
+cd kavro
 python -m venv venv
-```
-
-Activate the environment:
-
-| Operating System | Command |
-|------------------|---------|
-| Windows | `venv\Scripts\activate` |
-| Linux / macOS | `source venv/bin/activate` |
-
-### Step 3: Install Dependencies
-
-```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment
+### Configuration
 
-Create a `.env` file in the project root:
+Create `.env` file:
 
 ```env
-DATABASE_URL=postgresql+asyncpg://username:password@localhost:5432/kavro
-SECRET_KEY=your_secret_key
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/kavro
+SECRET_KEY=your_secure_random_string
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
 REDIS_URL=redis://localhost:6379
 ```
 
-| Variable | Description |
-|----------|-------------|
-| DATABASE_URL | PostgreSQL connection string |
-| SECRET_KEY | JWT signing key |
-| ACCESS_TOKEN_EXPIRE_MINUTES | Token validity period |
-| REDIS_URL | Redis connection string |
-
-### Step 5: Start Server
+### Run
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Server will be available at `http://localhost:8000`
+API docs: http://localhost:8000/docs
 
----
-
-## API Reference
+## API Endpoints
 
 ### Authentication
 
-| Endpoint         | Method | Description |
-|----------------- |--------|-------------|
-| `/auth/register` | POST | Create new user account |
-| `/auth/login`    | POST | Authenticate and receive JWT token |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /auth/register | Create account |
+| POST | /auth/login | Get JWT token |
+| GET | /auth/me | Get current user |
 
-### Key Management
+### Keys
 
-| Endpoint         | Method | Description |
-|----------------- |--------|-------------|
-| `/keys/publish`  | POST | Upload user's public key |
-| `/keys/{user_id}` | GET | Retrieve public key of specified user |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /keys/publish | Upload public key |
+| GET | /keys/{user_id} | Get user's public keys |
 
-### Messaging
+### Messages
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/messages/` | POST | Send encrypted message |
-| `/messages/inbox` | GET | Retrieve received messages |
-
----
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /messages/ | Send encrypted message |
+| GET | /messages/inbox | Get received messages |
+| POST | /messages/{id}/ack | Mark as delivered |
 
 ## Project Structure
 
 ```
 kavro/
 ├── app/
-│   ├── main.py              # Application entry point
-│   ├── models.py            # Database schema definitions
-│   ├── schemas.py           # Request/Response models
-│   │
-│   ├── api/
-│   │   ├── auth.py          # Authentication handlers
-│   │   ├── keys.py          # Key exchange handlers
-│   │   └── messages.py      # Message handlers
-│   │
-│   ├── core/
-│   │   ├── config.py        # Configuration management
-│   │   ├── security.py      # Cryptographic utilities
-│   │   └── rate_limiter.py  # Request throttling
-│   │
-│   └── db/
-│       ├── base.py          # Database metadata
-│       └── session.py       # Connection management
-│
-├── requirements.txt         # Python dependencies
-├── Procfile                 # Deployment configuration
-└── .env                     # Environment variables
+│   ├── api/           # Route handlers
+│   ├── core/          # Security, config, middleware
+│   ├── db/            # Database setup
+│   ├── main.py        # App entry point
+│   ├── models.py      # DB tables
+│   └── schemas.py     # Pydantic models
+├── client/            # Demo client
+├── Dockerfile
+├── docker-compose.yml
+└── requirements.txt
 ```
 
----
+## Docker Deployment
 
-## Security Implementation
+```bash
+docker-compose up --build
+```
 
-### Password Storage
+Services:
+- API: http://localhost:8000
+- PostgreSQL: Internal
+- Redis: Internal
 
-User passwords are hashed using bcrypt algorithm before storage. Plain text passwords are never stored in the database.
+## Security
 
-### Token Authentication
+This project implements **OWASP Top 10** security best practices:
 
-JWT (JSON Web Token) is used for session management. Tokens are signed using HS256 algorithm and include expiration timestamps.
+### SQL Injection Prevention
+
+All database queries use **SQLAlchemy ORM with parameterized queries**:
+
+```python
+# Safe - parameterized query (used in this project)
+q = sa.select(users).where(users.c.username == payload.username)
+
+# Unsafe - raw SQL (NOT used)
+# cursor.execute(f"SELECT * FROM users WHERE username = '{input}'")
+```
+
+**Protection**: User input is automatically escaped by SQLAlchemy, preventing injection attacks.
+
+### Authentication & Session Security
+
+| Protection | Implementation |
+|------------|----------------|
+| Password Hashing | bcrypt with salt rounds |
+| Token Auth | JWT with expiration |
+| Brute Force | Account lockout after 5 failed attempts |
+| Session Timeout | Configurable token expiry |
+
+### Input Validation
+
+All inputs validated using **Pydantic** schemas:
+
+```python
+# Username: alphanumeric, 3-50 chars
+# Password: 8+ chars, uppercase, lowercase, digit, special char
+```
 
 ### Rate Limiting
 
-Redis-based rate limiting is implemented to prevent brute force attacks and API abuse. Default limit: 60 requests per minute per user.
+Redis-based throttling per endpoint:
 
-### Data Protection
+| Endpoint | Limit | Window |
+|----------|-------|--------|
+| /auth/register | 3 requests | 1 hour |
+| /auth/login | 5 requests | 15 min |
+| /messages/ | 30 requests | 1 min |
 
-The server stores only encrypted message content. Decryption keys are never transmitted to or stored on the server.
+### Security Headers
 
----
+Middleware adds OWASP-recommended headers:
 
-## Development
+| Header | Value |
+|--------|-------|
+| Strict-Transport-Security | max-age=31536000; includeSubDomains |
+| Content-Security-Policy | default-src 'self' |
+| X-Frame-Options | DENY |
+| X-Content-Type-Options | nosniff |
+| X-XSS-Protection | 1; mode=block |
 
-### Running Tests
+### Data Encryption
 
-```bash
-pytest
+| Layer | Method |
+|-------|--------|
+| Passwords | bcrypt (one-way hash) |
+| Messages | Client-side NaCl (E2EE) |
+| Sensitive Fields | Fernet symmetric encryption |
+| Transport | HTTPS/TLS |
+
+### Audit Logging
+
+Security events logged in JSON format:
+
+```json
+{"timestamp": "...", "event": "login", "user": "john", "status": "success", "ip": "..."}
 ```
 
-### API Documentation
-
-Interactive documentation is available at:
-
-- Swagger UI: `http://localhost:8000/docs`
-- ReDoc: `http://localhost:8000/redoc`
-
----
+Events tracked: login, register, key_publish, message_send, message_fetch
 
 ## Demo Client
 
-A Python client is included to demonstrate the complete E2EE flow.
-
-### Prerequisites
-
-```bash
-pip install requests pynacl
-```
-
-### Usage
+Located in `client/demo_client.py`. Demonstrates full E2EE flow:
 
 ```bash
 cd client
+pip install requests pynacl
 python demo_client.py
 ```
-
-### What It Does
-
-| Step | Action |
-|------|--------|
-| 1 | Registers/logs in two test users (Alice and Bob) |
-| 2 | Generates NaCl key pairs for both users |
-| 3 | Publishes public keys to the server |
-| 4 | Alice encrypts a message for Bob |
-| 5 | Sends encrypted message through server |
-| 6 | Bob retrieves and decrypts the message |
-
-### Client Structure
-
-```
-client/
-├── demo_client.py       # Main demo script
-└── keys/                # Generated key pairs (local storage)
-    ├── alice_demo_priv.hex
-    ├── alice_demo_pub.hex
-    ├── bob_demo_priv.hex
-    └── bob_demo_pub.hex
-```
-
-### Key Functions
-
-| Function | Description |
-|----------|-------------|
-| `gen_identity_keypair()` | Generate Curve25519 key pair |
-| `encrypt_for_recipient()` | Encrypt using NaCl Box |
-| `decrypt_for_recipient()` | Decrypt using private key |
-| `publish_key()` | Upload public key to server |
-| `send_message()` | Send encrypted message |
-| `fetch_inbox()` | Retrieve encrypted messages |
-
----
-
-## Deployment
-
-Refer to the deployment guide for production setup instructions including:
-
-- EC2 instance configuration
-- PostgreSQL installation
-- Nginx reverse proxy setup
-- SSL certificate installation
-
----
 
 ## Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Submit a pull request
-
-Please ensure all tests pass before submitting.
-
----
+2. Create feature branch (`git checkout -b feature/new-feature`)
+3. Commit changes (`git commit -m 'Add new feature'`)
+4. Push to branch (`git push origin feature/new-feature`)
+5. Open Pull Request
 
 ## License
 
-This project is licensed under the MIT License.
-
----
+MIT License - see [LICENSE](LICENSE)
 
 ## Author
 
 **Ashish Kumar Shaw**
 
-- GitHub: https://github.com/ashishkrshaw
-- LinkedIn: https://www.linkedin.com/in/asksaw/
+- GitHub: [@ashishkrshaw](https://github.com/ashishkrshaw)
+- LinkedIn: [asksaw](https://www.linkedin.com/in/asksaw/)
 
 ---
 
-## Version History
-
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0.0 | 2025-10 | Initial release |
+*Built with security in mind.*

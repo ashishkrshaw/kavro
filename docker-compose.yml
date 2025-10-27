@@ -1,0 +1,31 @@
+# docker compose to run everything
+
+version: '3'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kavro:password123@db:5432/kavro
+      SECRET_KEY: mysecretkey123
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: kavro
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: kavro
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+
+volumes:
+  pgdata:
