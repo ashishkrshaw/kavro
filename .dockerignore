@@ -1,0 +1,45 @@
+# ===========================================
+# Docker Ignore - Files not needed in image
+# ===========================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.db
+test.db
+
+# Logs
+*.log
+build_log.txt
+
+# Docs (not needed in production)
+*.md
+!README.md
+
+# Local env files
+.env
+.env.local
+
+# Temp files
+*.tmp
+*.temp
