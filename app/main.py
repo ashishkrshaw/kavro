@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.api import auth, keys, messages
+from app.api.router import api_v1_router
 from app.db.session import engine
 from app.db.base import metadata
 from app.core.config import settings
@@ -37,7 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# routes
+# routes - versioned API (HENNGE best practice)
+app.include_router(api_v1_router)  # /api/v1/* endpoints
+
+# Also keep routes at root level for backward compatibility
+# This allows existing clients to work while new clients use /api/v1/
 app.include_router(auth.router)
 app.include_router(keys.router)
 app.include_router(messages.router)
@@ -70,5 +75,16 @@ async def shutdown():
 
 
 @app.get("/health")
+@app.get("/api/v1/health")  # Also available at versioned path
 async def health():
-    return {"status": "ok"}
+    """
+    Health check endpoint.
+    
+    Returns service status and version info.
+    Used by load balancers and monitoring systems.
+    """
+    return {
+        "status": "ok",
+        "service": "kavro",
+        "version": "1.0.0"
+    }

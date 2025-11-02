@@ -87,7 +87,11 @@ async def fetch_inbox(limit: int = 50, user_id: int = Depends(auth_and_set_state
                 try:
                     dec = encryptor.decrypt(row["metadata"])
                     msg["metadata"] = json.loads(dec)
-                except:
+                except json.JSONDecodeError:
+                    # Decrypted content is not valid JSON
+                    msg["metadata"] = {"error": "invalid_json"}
+                except (ValueError, TypeError):
+                    # Decryption or encoding failed
                     msg["metadata"] = {"error": "decryption_failed"}
             
             out.append(msg)
