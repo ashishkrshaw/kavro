@@ -1,48 +1,78 @@
 # Contributing to Kavro
 
-Thank you for your interest in contributing to Kavro!
+Hey! Thanks for wanting to contribute. Here's how to do it.
 
-## How to Contribute
+## Found a Bug?
 
-1. **Fork** the repository
-2. **Clone** your fork locally
-3. Create a **feature branch** from `main`
-4. Make your changes
-5. **Test** your changes
-6. Submit a **Pull Request**
+Open an issue and tell me:
+- What you expected to happen
+- What actually happened
+- Steps to reproduce it
+- Python version, OS, etc.
 
-## Development Setup
+## Want to Add Something?
+
+1. Open an issue first so we can discuss it
+2. Fork the repo
+3. Make your changes
+4. Run the tests
+5. Submit a PR
+
+## Setting Up for Development
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/kavro.git
 cd kavro
+
 python -m venv venv
 source venv/bin/activate
+
 pip install -r requirements.txt
+pip install -r requirements-test.txt
+
+cp .env.example .env
+# Edit .env with your local settings
 ```
+
+## Running Tests
+
+Before submitting anything:
+
+```bash
+pytest app/tests/ -v
+```
+
+All tests should pass. If you added new functionality, add tests for it too.
 
 ## Code Style
 
-- Follow PEP 8 guidelines
-- Use meaningful variable names
-- Add comments for complex logic
-- Keep functions focused and small
+Nothing fancy:
+- Follow PEP 8
+- Use type hints
+- Keep functions small
+- Add docstrings for public functions
+- No magic numbers - use constants
 
-## Reporting Issues
+I don't have a linter enforced, but please keep the code readable.
 
-When reporting bugs, please include:
-- Python version
-- Steps to reproduce
-- Expected vs actual behavior
-- Error messages/logs
+## Commit Messages
 
-## Pull Request Guidelines
+Just be clear:
+- `fix: registration failing for long usernames`
+- `feat: add message search endpoint`
+- `docs: update deployment guide`
 
-- One feature per PR
-- Include tests if applicable
-- Update documentation if needed
-- Keep commits atomic and well-described
+No need for elaborate conventions.
+
+## PR Guidelines
+
+- One feature/fix per PR
+- Update tests if needed
+- Update docs if needed
+- Keep it focused
 
 ## Questions?
 
-Open an issue or reach out to [@ashishkrshaw](https://github.com/ashishkrshaw)
+Open an issue or reach out to me on GitHub.
+
+Thanks for helping make Kavro better!

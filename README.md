@@ -1,239 +1,161 @@
 # Kavro
 
-A production-ready End-to-End Encrypted (E2EE) messaging backend built with FastAPI.
+A secure messaging API with end-to-end encryption. Messages are encrypted on your device before they ever leave - the server never sees what you're sending.
 
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+Built with FastAPI, PostgreSQL, and Redis.
 
-## Overview
+## What's This?
 
-Kavro implements secure message exchange using public-key cryptography. Messages are encrypted client-side before transmission, ensuring the server never has access to plaintext content.
+Kavro is a backend for encrypted messaging apps. Think of it like the server part of Signal or WhatsApp, but simpler and open source.
 
-This project demonstrates:
-- RESTful API design with FastAPI
-- Async database operations with SQLAlchemy + asyncpg
-- JWT-based authentication
-- OWASP security best practices
-- Docker containerization
+Your app encrypts messages → sends to Kavro → recipient fetches → their app decrypts
 
-## Features
-
-| Feature | Description |
-|---------|-------------|
-| E2EE Messaging | Public/private key encryption (NaCl) |
-| Secure Auth | JWT tokens + bcrypt password hashing |
-| Brute Force Protection | Account lockout after failed attempts |
-| Rate Limiting | Redis-based request throttling |
-| Field Encryption | Fernet encryption for sensitive data |
-| Security Headers | HSTS, CSP, X-Frame-Options |
-| Audit Logging | Security event tracking |
-| Docker Support | Multi-container deployment |
-
-## Tech Stack
-
-- **Backend**: Python 3.10+, FastAPI
-- **Database**: PostgreSQL (async with asyncpg)
-- **Cache**: Redis
-- **Auth**: JWT (python-jose), bcrypt (passlib)
-- **Encryption**: PyNaCl, Fernet
+The server just stores encrypted blobs. It can't read your messages even if it wanted to.
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.10+
-- PostgreSQL 14+
-- Redis 6+
-
-### Installation
+### With Docker (easiest)
 
 ```bash
 git clone https://github.com/ashishkrshaw/kavro.git
 cd kavro
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+
+# Setup config
+cp .env.docker.example .env
+nano .env  # change the passwords!
+
+# Run
+docker-compose up -d
+
+# Check it works
+curl http://localhost:8000/health
 ```
 
-### Configuration
-
-Create `.env` file:
-
-```env
-DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/kavro
-SECRET_KEY=your_secure_random_string
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-REDIS_URL=redis://localhost:6379
-```
-
-### Run
+### Without Docker
 
 ```bash
+git clone https://github.com/ashishkrshaw/kavro.git
+cd kavro
+
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+pip install -r requirements.txt
+
+cp .env.example .env
+nano .env  # add your database URL
+
 uvicorn app.main:app --reload
 ```
 
-API docs: http://localhost:8000/docs
+Open http://localhost:8000/docs to see the API.
 
-## API Endpoints
+## Environment Variables
 
-### Authentication
+Create a `.env` file:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /auth/register | Create account |
-| POST | /auth/login | Get JWT token |
-| GET | /auth/me | Get current user |
+```
+DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/kavro
+SECRET_KEY=some-long-random-string
+REDIS_URL=redis://localhost:6379
+```
 
-### Keys
+Generate a secret key:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /keys/publish | Upload public key |
-| GET | /keys/{user_id} | Get user's public keys |
+## API Overview
 
-### Messages
+Everything lives under `/api/v1/`. Here's what you can do:
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /messages/ | Send encrypted message |
-| GET | /messages/inbox | Get received messages |
-| POST | /messages/{id}/ack | Mark as delivered |
+**Auth stuff:**
+- `POST /api/v1/auth/register` - create account
+- `POST /api/v1/auth/login` - get token
+- `GET /api/v1/auth/me` - who am I?
 
-## Project Structure
+**Keys:**
+- `POST /api/v1/keys/publish` - upload your public key
+- `GET /api/v1/keys/{user_id}` - get someone's public key
+
+**Messages:**
+- `POST /api/v1/messages/` - send encrypted message
+- `GET /api/v1/messages/inbox` - get your messages
+- `POST /api/v1/messages/{id}/ack` - mark as read
+
+**Health:**
+- `GET /health` - is server alive?
+
+Full docs at http://localhost:8000/docs when running.
+
+## Project Layout
 
 ```
 kavro/
 ├── app/
-│   ├── api/           # Route handlers
-│   ├── core/          # Security, config, middleware
-│   ├── db/            # Database setup
-│   ├── main.py        # App entry point
-│   ├── models.py      # DB tables
-│   └── schemas.py     # Pydantic models
-├── client/            # Demo client
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
+│   ├── api/          # endpoints
+│   ├── core/         # security, config
+│   ├── db/           # database stuff
+│   ├── tests/        # tests (25 of them)
+│   ├── models.py     # database tables
+│   ├── schemas.py    # request/response shapes
+│   └── main.py       # app starts here
+├── docs/             # deployment guides
+├── .env.example      # config template
+└── docker-compose.yml
 ```
 
-## Docker Deployment
+## Running Tests
 
 ```bash
-docker-compose up --build
+pip install -r requirements-test.txt
+pytest app/tests/ -v
 ```
 
-Services:
-- API: http://localhost:8000
-- PostgreSQL: Internal
-- Redis: Internal
+All 25 tests should pass.
 
 ## Security
 
-This project implements **OWASP Top 10** security best practices:
+- Passwords hashed with bcrypt
+- JWT tokens for auth
+- Rate limiting to prevent abuse
+- Brute force protection (locks after failed attempts)
+- Security headers (HSTS, CSP, etc.)
+- Field encryption for sensitive data
 
-### SQL Injection Prevention
+## Deploying
 
-All database queries use **SQLAlchemy ORM with parameterized queries**:
+See [docs/EC2_DEPLOYMENT.md](docs/EC2_DEPLOYMENT.md) for a step-by-step guide on deploying to AWS EC2 with HTTPS.
 
-```python
-# Safe - parameterized query (used in this project)
-q = sa.select(users).where(users.c.username == payload.username)
-
-# Unsafe - raw SQL (NOT used)
-# cursor.execute(f"SELECT * FROM users WHERE username = '{input}'")
-```
-
-**Protection**: User input is automatically escaped by SQLAlchemy, preventing injection attacks.
-
-### Authentication & Session Security
-
-| Protection | Implementation |
-|------------|----------------|
-| Password Hashing | bcrypt with salt rounds |
-| Token Auth | JWT with expiration |
-| Brute Force | Account lockout after 5 failed attempts |
-| Session Timeout | Configurable token expiry |
-
-### Input Validation
-
-All inputs validated using **Pydantic** schemas:
-
-```python
-# Username: alphanumeric, 3-50 chars
-# Password: 8+ chars, uppercase, lowercase, digit, special char
-```
-
-### Rate Limiting
-
-Redis-based throttling per endpoint:
-
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| /auth/register | 3 requests | 1 hour |
-| /auth/login | 5 requests | 15 min |
-| /messages/ | 30 requests | 1 min |
-
-### Security Headers
-
-Middleware adds OWASP-recommended headers:
-
-| Header | Value |
-|--------|-------|
-| Strict-Transport-Security | max-age=31536000; includeSubDomains |
-| Content-Security-Policy | default-src 'self' |
-| X-Frame-Options | DENY |
-| X-Content-Type-Options | nosniff |
-| X-XSS-Protection | 1; mode=block |
-
-### Data Encryption
-
-| Layer | Method |
-|-------|--------|
-| Passwords | bcrypt (one-way hash) |
-| Messages | Client-side NaCl (E2EE) |
-| Sensitive Fields | Fernet symmetric encryption |
-| Transport | HTTPS/TLS |
-
-### Audit Logging
-
-Security events logged in JSON format:
-
-```json
-{"timestamp": "...", "event": "login", "user": "john", "status": "success", "ip": "..."}
-```
-
-Events tracked: login, register, key_publish, message_send, message_fetch
-
-## Demo Client
-
-Located in `client/demo_client.py`. Demonstrates full E2EE flow:
-
+Short version:
 ```bash
-cd client
-pip install requests pynacl
-python demo_client.py
+docker pull ashishkrshaw/kavro-api:latest
+docker-compose up -d
 ```
+
+## Tech Stack
+
+- Python 3.10+
+- FastAPI
+- PostgreSQL (async)
+- Redis
+- Docker
 
 ## Contributing
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/new-feature`)
-3. Commit changes (`git commit -m 'Add new feature'`)
-4. Push to branch (`git push origin feature/new-feature`)
-5. Open Pull Request
+Found a bug? Want to add something? PRs welcome.
+
+1. Fork it
+2. Make changes
+3. Run tests
+4. Submit PR
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT - do whatever you want with it.
 
 ## Author
 
-**Ashish Kumar Shaw**
-
+Ashish Kumar Shaw
 - GitHub: [@ashishkrshaw](https://github.com/ashishkrshaw)
-- LinkedIn: [asksaw](https://www.linkedin.com/in/asksaw/)
-
----
-
-*Built with security in mind.*
+- LinkedIn: [asksaw](https://linkedin.com/in/asksaw)
