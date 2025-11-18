@@ -3,15 +3,21 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    pool_pre_ping=True,
-    # Connection pool limits
-    pool_size=20,
-    max_overflow=10,
-    pool_timeout=30,
-)
+# SQLite doesn't support pool settings, so only add them for PostgreSQL
+if settings.DATABASE_URL.startswith("sqlite"):
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+    )
+else:
+    engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        pool_pre_ping=True,
+        pool_size=20,
+        max_overflow=10,
+        pool_timeout=30,
+    )
 
 
 AsyncSessionLocal = sessionmaker(
@@ -19,6 +25,3 @@ AsyncSessionLocal = sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False
 )
-
-
-
