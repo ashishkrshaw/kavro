@@ -25,11 +25,21 @@ class FieldEncryptor:
         return self.fernet.encrypt(plaintext.encode()).decode()
 
     def decrypt(self, ciphertext: str) -> str:
+        """
+        Decrypt a ciphertext string.
+        
+        Returns original ciphertext if decryption fails (graceful degradation).
+        """
         if not ciphertext:
             return ciphertext
         try:
             return self.fernet.decrypt(ciphertext.encode()).decode()
-        except:
+        except (ValueError, TypeError) as e:
+            # Invalid token format or encoding issue
+            return ciphertext
+        except Exception as e:
+            # Fernet InvalidToken or other crypto errors
+            # Log this in production for debugging
             return ciphertext
 
 
