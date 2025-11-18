@@ -1,17 +1,16 @@
 import base64
 import json
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+
 import sqlalchemy as sa
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.schemas import MessageIn, MessageOut
-from app.models import messages, users, audit_logs
-from app.db.session import AsyncSessionLocal
-from app.core.security import auth_and_set_state
-from app.core.rate_limiter import limiter
-from app.core.encryption import encryptor
 from app.core.audit import log_security_event
-
+from app.core.encryption import encryptor
+from app.core.rate_limiter import limiter
+from app.core.security import auth_and_set_state
+from app.db.session import AsyncSessionLocal
+from app.models import audit_logs, messages, users
+from app.schemas import MessageIn, MessageOut
 
 router = APIRouter(prefix="/messages", tags=["messages"])
 
@@ -27,9 +26,9 @@ async def send_message(payload: MessageIn, sender_id: int = Depends(auth_and_set
 
         try:
             ciphertext_bytes = base64.b64decode(payload.ciphertext)
-        except Exception:
-            raise HTTPException(status_code=400, 
-                              detail="Invalid ciphertext. Must be valid base64 encoded.")
+        except Exception as err:
+            raise HTTPException(status_code=400,
+                              detail="Invalid ciphertext. Must be valid base64 encoded.") from err
 
         enc_metadata = None
         if payload.metadata:
@@ -51,7 +50,7 @@ async def send_message(payload: MessageIn, sender_id: int = Depends(auth_and_set
                 details={"to": payload.recipient_id}
             )
         )
-        await log_security_event("send_message", str(sender_id), "success", 
+        await log_security_event("send_message", str(sender_id), "success",
                                 details={"to": payload.recipient_id})
         await session.commit()
 
@@ -65,15 +64,15 @@ async def fetch_inbox(limit: int = 50, user_id: int = Depends(auth_and_set_state
         q = sa.select(messages).where(
             messages.c.recipient_id == user_id
         ).order_by(messages.c.created_at.desc()).limit(limit)
-        
+
         r = await session.execute(q)
         rows = [dict(row._mapping) for row in r.fetchall()]
 
-        out: List[MessageOut] = []
+        out: list[MessageOut] = []
         for row in rows:
             ct = row["ciphertext"]
             ct_b64 = base64.b64encode(ct).decode()
-            
+
             msg = {
                 "id": row["id"],
                 "sender_id": row["sender_id"],
@@ -82,18 +81,16 @@ async def fetch_inbox(limit: int = 50, user_id: int = Depends(auth_and_set_state
                 "ephemeral_pubkey": row["ephemeral_pubkey"],
                 "metadata": None,
             }
-            
+
             if row.get("metadata"):
                 try:
                     dec = encryptor.decrypt(row["metadata"])
                     msg["metadata"] = json.loads(dec)
                 except json.JSONDecodeError:
-                    # Decrypted content is not valid JSON
                     msg["metadata"] = {"error": "invalid_json"}
                 except (ValueError, TypeError):
-                    # Decryption or encoding failed
                     msg["metadata"] = {"error": "decryption_failed"}
-            
+
             out.append(msg)
 
         await session.execute(
@@ -115,13 +112,13 @@ async def ack_message(message_id: int, user_id: int = Depends(auth_and_set_state
         q = sa.select(messages).where(messages.c.id == message_id)
         r = await session.execute(q)
         row = r.first()
-        
+
         if not row:
             raise HTTPException(status_code=404, detail="Message not found.")
 
         record = row._mapping
         if record["recipient_id"] != user_id:
-            raise HTTPException(status_code=403, 
+            raise HTTPException(status_code=403,
                               detail="You don't have permission to access this message.")
 
         upd = messages.update().where(messages.c.id == message_id).values(delivered=True)

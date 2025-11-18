@@ -1,5 +1,3 @@
-from typing import Optional
-
 import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
