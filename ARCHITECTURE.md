@@ -1,144 +1,56 @@
-# How Kavro Works
+# Architecture
 
-This doc explains the design decisions I made while building Kavro. If you're wondering "why did he do it that way?" - this is the place.
+How Kavro is structured and why.
 
-## The Big Picture
+## Overview
 
 ```
-Client encrypts message
-       ↓
-Sends to Kavro server
-       ↓
-Server stores encrypted blob (can't read it)
-       ↓
-Recipient fetches
-       ↓
-Client decrypts
+Client -> API -> PostgreSQL (users, messages)
+            -> Redis (rate limiting, sessions)
 ```
 
-The key thing: **the server never sees plaintext messages**. Even if someone hacks the database, they just get encrypted garbage.
+Client does all encryption. Server just stores and relays encrypted blobs.
 
-## Folder Structure
-
-I organized it like this:
+## Folder structure
 
 ```
 app/
-├── api/           # HTTP endpoints (thin layer, just handles requests)
-├── core/          # The important stuff - security, encryption, config
-├── db/            # Database connection
-├── tests/         # Tests for everything
-├── models.py      # What tables look like
-├── schemas.py     # What requests/responses look like
-└── main.py        # Where it all starts
+  api/        - endpoints (auth, keys, messages)
+  core/       - security, config, middleware
+  db/         - database connection
+  tests/      - pytest tests
+  models.py   - db tables
+  schemas.py  - pydantic models
+  main.py     - fastapi app
 ```
 
-**Why separate api/ and core/?**
+## Why this structure
 
-The API layer just handles HTTP stuff - parsing requests, returning responses. All the real logic lives in core/. This way if I want to add a CLI or something later, I can reuse the core logic.
+API layer handles http stuff. Core has business logic. Keeps things separate so easier to test and modify.
 
-## Database Choices
+## Database
 
-**Why SQLAlchemy Core instead of ORM?**
+Using SQLAlchemy Core (not ORM) with async postgres. More explicit, you see exactly what queries run.
 
-I went with raw SQLAlchemy queries instead of the full ORM because:
-- It's more explicit - you can see exactly what SQL runs
-- Less magic = easier to debug
-- Faster for async stuff
+Tables: users, devices (public keys), messages, audit_logs
 
-So instead of:
-```python
-user = User.query.filter_by(username='john').first()  # ORM magic
-```
+## Security layers
 
-I write:
-```python
-q = sa.select(users).where(users.c.username == 'john')  # explicit
-```
+1. HTTPS - encrypts in transit
+2. Client encryption - nacl for messages
+3. Field encryption - fernet for sensitive db fields
+4. Rate limiting - redis based
+5. Brute force protection - lockout after failed logins
+6. Security headers - HSTS, CSP etc
 
-**Why PostgreSQL?**
+## Auth
 
-It's solid, handles async well with asyncpg, and is free. Plus everyone knows it.
-
-## Security Layers
-
-I have three layers of encryption:
-
-1. **HTTPS** - encrypts data in transit
-2. **Client-side encryption** - messages encrypted before sending (using NaCl)
-3. **Field encryption** - sensitive stuff in DB is encrypted with Fernet
-
-Why so many? Defense in depth. If one layer fails, others still protect you.
-
-## Rate Limiting
-
-I use Redis to track request counts. Each endpoint has limits:
-
-- Registration: 3/hour (prevent spam accounts)
-- Login: 5/15min (prevent brute force)
-- Messages: 30/min (prevent spam)
-
-If you hit the limit, you get a 429 error.
-
-## Auth Flow
-
-**Registration:**
-1. User sends username + password
-2. I validate (Pydantic checks format)
-3. Hash password with bcrypt
-4. Create user in DB
-5. Return JWT token
-
-**Login:**
-1. Check if account is locked (brute force protection)
-2. Find user
-3. Verify password
-4. Reset failure counter
-5. Return JWT token
-
-**Brute force protection:**
-After 5 failed logins, account locks for 5 minutes. This counter lives in Redis.
-
-## Message Flow
-
-**Sending:**
-1. Client encrypts message with recipient's public key
-2. Sends: ciphertext (base64), ephemeral key, optional metadata
-3. I store it as-is (can't decrypt it anyway)
-4. Log the action
-
-**Receiving:**
-1. Client fetches inbox
-2. I return all their encrypted messages
-3. Client decrypts with their private key
-4. Client sends "ack" to mark as delivered
-
-## What I'd Change for Scale
-
-Right now Kavro is designed for small-medium use. For bigger scale I'd add:
-
-- **Message queue** - instead of direct DB writes, push to RabbitMQ/SQS
-- **Read replicas** - separate DB for reads vs writes
-- **External logging** - send logs to CloudWatch instead of stdout
-- **S3 for attachments** - if supporting images/files
-
-But for now, this works fine for thousands of users.
+JWT tokens. Passwords hashed with bcrypt. Token expires in 24h by default.
 
 ## Testing
 
-I have 25 tests covering:
-- All API endpoints
-- Success and error cases
-- Auth edge cases
-- Message permission checks
+Pytest with async support. Uses sqlite for tests so no need for real postgres. 25 tests covering auth, keys, messages.
 
-Run them with:
-```bash
-pytest app/tests/ -v
-```
+## Scaling
 
-Tests use SQLite in-memory so they're fast and don't need real PostgreSQL.
-
-## Questions?
-
-If something doesn't make sense, open an issue. I'm happy to explain.
+For bigger scale would add message queue, read replicas, external logging. But current setup handles thousands of users fine.
