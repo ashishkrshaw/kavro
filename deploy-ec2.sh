@@ -9,9 +9,9 @@
 set -e
 
 # -----------------------------------------------------------------------------
-# CONFIGURATION (auto-generated, no need to change)
+# CONFIGURATION - Change DOMAIN to your DuckDNS subdomain
 # -----------------------------------------------------------------------------
-DOMAIN="kavro.duckdns.org"
+DOMAIN="your-subdomain.duckdns.org"  # Change this! Example: kavro.duckdns.org
 DUCKDNS_TOKEN="PASTE_YOUR_TOKEN_HERE"  # Get from duckdns.org (optional)
 DB_PASSWORD="$(openssl rand -base64 24)"
 SECRET_KEY="$(openssl rand -hex 32)"
